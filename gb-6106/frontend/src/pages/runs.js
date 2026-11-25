@@ -14,7 +14,8 @@ function reportState(run) {
 
 export async function runsPage(config, route, signal) {
   const items = await api.runs();
-  const latest = route.id ? await api.run(route.id, signal) : items[0];
+  const chosen = route.id ?? items[0]?.id;
+  const latest = chosen ? await api.run(chosen, signal) : null;
   const detail = latest ? reportState(latest) : empty("进入资料页，选用一个业务样本并提交执行。");
   async function refresh() {
     try {

@@ -11,5 +11,10 @@ export const api = {
   review: id => request(`/runs/${id}/review`),
   submitReview: (id, data) => request(`/runs/${id}/review`, {method: "POST", data}),
   export: id => request(`/runs/${id}/export`, {raw: true}),
+  segments: () => request("/segments"),
+  archive: id => request(`/runs/${id}/archive`, {method: "POST"}),
+  archiveDetail: id => request(`/runs/${id}/archive`),
+  archiveDownload: id => request(`/runs/${id}/archive/download`, {raw: true}),
+  purgeArchive: id => request(`/runs/${id}/archive`, {method: "DELETE"}),
   audit: () => request("/audit", {signal: AbortSignal.timeout(5000)}),
 };

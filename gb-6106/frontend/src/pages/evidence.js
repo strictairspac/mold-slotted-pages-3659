@@ -19,9 +19,70 @@ function signature(review) {
     el("strong", {}, `已签署 · ${review.actor}`), el("p", {}, review.note), el("time", {}, time(review.created_at)));
 }
 
+function archivePanel(run, user, issue) {
+  const box = el("div", {class: "stack", "data-testid": "archive"});
+
+  async function render() {
+    let archived = null;
+    try {
+      archived = await api.archiveDetail(run.id);
+    } catch {
+      archived = null;
+    }
+    if (archived) {
+      const reclaim = el("p", {class: "help"},
+        `地址段 ${archived.digest.slice(0, 12)}… · ${archived.size} 字节 · 共 ${archived.references} 个批次引用` +
+        (archived.references > 1 ? "，其他批次仍在使用，清理本批次不会回收。" : "，清理本批次后回收。"));
+      const clean = el("button", {type: "button", onclick: async () => {
+        clean.disabled = true;
+        issue.textContent = "";
+        try {
+          await api.purgeArchive(run.id);
+          await render();
+        } catch (error) {
+          issue.textContent = error.message;
+          clean.disabled = false;
+        }
+      }}, "清理本批次归档");
+      box.replaceChildren(
+        el("strong", {}, "已归档，与其他批次共用一份地址段"),
+        reclaim,
+        el("div", {class: "actions"},
+          el("button", {type: "button", onclick: async () => {
+            try {
+              await download(await api.archiveDownload(run.id), `segment-${archived.digest}.json`);
+            } catch (error) {
+              issue.textContent = error.message;
+            }
+          }}, "下载归档地址段"),
+          user.role === "operator" ? clean : null));
+      return;
+    }
+    const act = el("button", {type: "button", onclick: async () => {
+      act.disabled = true;
+      issue.textContent = "";
+      try {
+        await api.archive(run.id);
+        await render();
+      } catch (error) {
+        issue.textContent = error.message;
+        act.disabled = false;
+      }
+    }}, "归档地址段");
+    box.replaceChildren(
+      el("p", {class: "help", "data-testid": "unarchived"},
+        "归档后本批次只保留自身操作记录，相同地址段与其他批次共用一份，下载内容保持不变。"),
+      user.role === "operator" ? act : empty("等待资料操作员归档。"));
+  }
+
+  render();
+  return box;
+}
+
 export async function evidencePage(config, user, route) {
   const runs = (await api.runs()).filter(item => item.status === "done");
-  const run = route.id ? await api.run(route.id) : runs[0];
+  const chosen = route.id ?? runs[0]?.id;
+  const run = chosen ? await api.run(chosen) : null;
   if (!run?.result) return el("div", {class: "page"},
     pageHeading(config.modules[3], null), empty("成功执行一个批次后可以查看、签核和下载证据。"),
     el("a", {href: "#runs"}, config.modules[2]));
@@ -53,5 +114,6 @@ export async function evidencePage(config, user, route) {
     el("dl", {class: "metrics"}, Object.entries(run.result.metrics).map(([label, value]) =>
       el("div", {}, el("dt", {}, label), el("dd", {}, cell(value))))),
     section("业务结果明细", run.result.rows.length ? resultTable(run.result.rows) : empty("此批次无明细。")),
+    section("追溯地址归档", archivePanel(run, user, issue)),
     section("复核签署", signing));
 }

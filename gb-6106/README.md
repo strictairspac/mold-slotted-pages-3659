@@ -41,6 +41,8 @@ docker compose up -d --build --wait
 
 选用「C4#03 · GM-C4-P07」对应的演示资料，保存一份复演资料，再以默认参数 192 提交。worker 保存结果摘要、业务明细和 SHA-256。复核员登录后在「追溯地址表」签署。
 
+批次完成后可在证据页归档：结果正文移入按 SHA-256 命名的共享地址段，内容相同的两个批次只存一份，各自仍保留自己的归档记录与审计。归档前后的证据下载逐字节相同，归档中途停止时批次保持原样，重试只补完不产生副本。清理某批次的归档只删它自己的记录，地址段仍被其他批次引用时不回收，最后一份引用清理后连同正文一起收回。
+
 ## 开发说明
 
 | 部分 | 实现 |
@@ -49,10 +51,11 @@ docker compose up -d --build --wait
 | 后端 | Python 3.11、FastAPI、SQLAlchemy、JWT |
 | 数据库 | MySQL 8.0 |
 | 后台执行 | Redis 通知、数据库持久任务队列和行锁、Python worker |
+| 归档 | 内容寻址地址段（SHA-256）、批次引用表、行锁、幂等重试 |
 
-从 `backend/src/domain/scenario.py` 修改业务入口和演示口径，运行 `docker compose up -d --build --wait` 查看变更。数据库表结构在 `backend/src/models` 和 `backend/migrations`，输入模型在 `backend/src/schemas`。业务页和请求接口在 `frontend/src/pages`、`frontend/src/api`。资料、执行、复核三个工作流实体各有独立表和 API；场景输入及结果保留在所属资料和批次中。
+从 `backend/src/domain/scenario.py` 修改业务入口和演示口径，运行 `docker compose up -d --build --wait` 查看变更。数据库表结构在 `backend/src/models` 和 `backend/migrations`，输入模型在 `backend/src/schemas`。业务页和请求接口在 `frontend/src/pages`、`frontend/src/api`。资料、执行、复核三个工作流实体各有独立表和 API；场景输入及结果保留在所属资料和批次中，归档后结果正文改由地址段保存。
 
-角色枚举在 `backend/src/constants/roles.py`、`frontend/src/constants/roles.js`，用于服务端访问控制、账号初始化、前端导航与签署。批次状态在 `backend/src/constants/job_state.py`、`frontend/src/constants/states.js`，用于队列、状态 API、状态标记与轮询。登记、提交、完成和签署事件写入审计表。
+角色枚举在 `backend/src/constants/roles.py`、`frontend/src/constants/roles.js`，用于服务端访问控制、账号初始化、前端导航与签署。批次状态在 `backend/src/constants/job_state.py`、`frontend/src/constants/states.js`，用于队列、状态 API、状态标记与轮询。登记、提交、完成、签核、归档和清理事件写入审计表。归档算法在 `backend/src/services/archives.py`，共享段与批次引用的表结构在 `backend/src/models/archives.py`。
 
 `COMPOSE_PROJECT_NAME` 设置栈名，`FRONTEND_PORT`、`BACKEND_PORT`、`DB_PORT` 设置端口。通过 `DB_PASSWORD`、`JWT_SECRET`、`DEMO_PASSWORD` 配置本地凭据。设置 `SEED_DEMO=false` 可关闭演示数据载入，此时数据库初始没有演示账号。数据库密码调整后，已有数据卷需在数据库内同步修改用户密码。
 
